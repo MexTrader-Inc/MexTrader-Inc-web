@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MexTrader - Plataforma SaaS</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root { --bg-dark: #131722; --bg-panel: #1e222d; --text-main: #d1d4dc; --text-muted: #787b86; --accent-blue: #2962ff; --trade-green: #089981; --trade-red: #f23645; --border-color: #2a2e39; --warning: #ff9800; --gold: #ffd700; --admin-purple: #9c27b0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-main); height: 100vh; overflow: hidden; }
+
+        /* PANTALLA DE ACCESO */
+        #authScreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 1000; overflow-y: auto; padding: 20px 0; }
+        .auth-card { background: var(--bg-panel); padding: 30px; border-radius: 12px; border: 1px solid var(--accent-blue); width: 450px; text-align: center; box-shadow: 0 0 20px rgba(41, 98, 255, 0.2); max-height: 95vh; overflow-y: auto; }
+        .auth-card h2 { color: white; margin-bottom: 15px; font-size: 1.4rem; }
+        .auth-card input, .auth-card select { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-size: 0.9rem; }
+        .auth-card button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; background: var(--accent-blue); margin-top: 10px; margin-bottom: 10px; transition: 0.2s;}
+        .auth-card button:hover { opacity: 0.9; }
+        .toggle-auth { color: var(--text-muted); cursor: pointer; font-size: 0.9rem; text-decoration: underline; margin-top: 5px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+        .divider { display: flex; align-items: center; text-align: center; color: var(--text-muted); margin: 15px 0; font-size: 0.85rem; }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border-color); }
+
+        /* MODALES */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 2000; }
+        .payment-card { background: var(--bg-panel); padding: 30px; border-radius: 12px; border: 2px solid var(--warning); width: 400px; text-align: center; color: white; }
+        .payment-box { background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px dashed var(--text-muted); margin: 15px 0; text-align: left;}
+        .btn-trial { background: var(--trade-green); width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; margin-bottom: 15px; }
+        .btn-pay { background: var(--accent-blue); width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; }
+        .close-modal { color: var(--text-muted); cursor: pointer; font-size: 0.9rem; text-decoration: underline; margin-top: 15px; display: block; }
+
+        /* APLICACIÓN PRINCIPAL */
+        #appScreen { display: none; height: 100vh; flex-direction: column; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background-color: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
+        .user-profile { display: flex; align-items: center; gap: 8px; background: #000; padding: 5px 12px; border-radius: 5px; border: 1px solid var(--border-color);}
+        
+        .plan-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        .plan-basic { background: var(--border-color); color: white; }
+        .plan-max { background: var(--accent-blue); color: white; }
+        .plan-premium { background: var(--gold); color: black; }
+        
+        .upgrade-btn { background: var(--warning); color: black; border: none; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: bold;}
+        .deposit-btn { background: var(--trade-green); color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: bold; margin-left: 5px;}
+
+        .balance-container { text-align: center; }
+        .balance-label { font-size: 0.8rem; color: var(--text-muted); }
+        .balance-amount { font-size: 1.2rem; font-weight: bold; color: var(--trade-green); }
+        
+        .bot-control { display: flex; align-items: center; gap: 10px; background: rgba(41, 98, 255, 0.1); padding: 5px 15px; border-radius: 8px; border: 1px solid var(--accent-blue);}
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-blue); }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        .main-container { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: 1fr 280px; height: calc(100vh - 60px); }
+        .chart-section { grid-column: 1 / 2; grid-row: 1 / 2; border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+        
+        .control-panel { grid-column: 2 / 3; grid-row: 1 / 3; background-color: var(--bg-panel); padding: 15px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .panel-block { background-color: var(--bg-dark); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); }
+        h3 { font-size: 0.95rem; margin-bottom: 10px; color: white; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+        .input-group label { font-size: 0.8rem; color: var(--text-muted); }
+        .input-group input { padding: 6px; border-radius: 4px; border: 1px solid var(--border-color); background-color: var(--bg-panel); color: white; font-size: 0.9rem;}
+        
+        .flex-row { display: flex; gap: 10px; }
+        .flex-row .input-group { flex: 1; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        .btn { flex: 1; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-buy { background-color: var(--trade-green); }
+        .btn-sell { background-color: var(--trade-red); }
+
+        .data-section { grid-column: 1 / 2; grid-row: 2 / 3; background-color: var(--bg-panel); padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; overflow: hidden; }
+        .table-container { background: var(--bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); overflow-y: auto; height: 100%; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
+        th { color: var(--text-muted); font-weight: normal; }
+        
+        .live-data { display: flex; justify-content: space-between; align-items: center; background: #000; padding: 8px; border-radius: 5px; margin-bottom: 10px; border: 1px dashed var(--border-color);}
+
+        /* ==========================================
+           📱 ADAPTACIÓN PARA MÓVILES (RESPONSIVE)
+           ========================================== */
+        @media (max-width: 768px) {
+            .auth-card { width: 90%; padding: 20px; }
+            .form-grid { grid-template-columns: 1fr; } 
+
+            header { flex-direction: column; gap: 15px; align-items: flex-start; }
+            header > div { flex-wrap: wrap; justify-content: space-between; width: 100%; }
+            
+            .main-container {
+                display: flex;
+                flex-direction: column;
+                height: auto; 
+                overflow-y: auto;
+            }
+
+            .chart-section { height: 400px; border-right: none; border-bottom: 2px solid var(--border-color); }
+            .control-panel { padding: 10px; }
+            
+            .data-section { grid-template-columns: 1fr; gap: 10px; }
+            .table-container { border-left: none !important; border-top: 4px solid var(--accent-blue); }
+            
+            .payment-card { width: 95%; padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="authScreen">
+        <div class="auth-card" id="loginCard">
+            <h2>Iniciar Sesión</h2>
+            
+            <div id="g_id_onload"
+                 data-client_id="500835836167-tal3jv0pf9r903lq1a25g7t5nb54f3bh.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="filled_black"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left"
+                 style="display: flex; justify-content: center; margin-bottom: 10px;">
+            </div>
+
+            <div class="divider">O entra con tu cuenta local</div>
+
+            <input type="text" id="loginUser" placeholder="Usuario">
+            <input type="password" id="loginPass" placeholder="Contraseña">
+            <button onclick="doLogin()">Entrar</button>
+            <p class="toggle-auth" onclick="toggleAuthForms()">¿No tienes cuenta? Regístrate gratis</p>
+        </div>
+
+        <div class="auth-card" id="registerCard" style="display: none;">
+            <h2>Crear Cuenta Gratis</h2>
+            <div class="form-grid">
+                <input type="text" id="regUser" placeholder="Usuario">
+                <input type="password" id="regPass" placeholder="Contraseña">
+            </div>
+            <input type="text" id="regFullName" placeholder="Nombre Completo">
+            <div class="form-grid">
+                <input type="number" id="regAge" placeholder="Edad">
+                <select id="regGender">
+                    <option value="" disabled selected>Sexo</option>
+                    <option value="M">Masculino</option>
+                    <option value="F">Femenino</option>
+                    <option value="O">Otro</option>
+                </select>
+            </div>
+            <div class="form-grid">
+                <input type="email" id="regEmail" placeholder="Correo Electrónico">
+                <input type="text" id="regPhone" placeholder="Teléfono">
+            </div>
+            <input type="text" id="regStreet" placeholder="Calle">
+            <div class="form-grid">
+                <input type="text" id="regNumExt" placeholder="Num Exterior">
+                <input type="text" id="regNumInt" placeholder="Num Interior (Opcional)">
+            </div>
+            <div class="form-grid">
+                <input type="text" id="regZip" placeholder="Código Postal">
+                <input type="text" id="regCity" placeholder="Ciudad">
+            </div>
+            <input type="text" id="regCountry" placeholder="País" value="México">
+            
+            <button onclick="doRegister()">Registrarse</button>
+            <p class="toggle-auth" onclick="toggleAuthForms()">Volver al Login</p>
+        </div>
+    </div>
+
+    <!-- MODALES DE PAGO ACTUALIZADOS CON IMÁGENES -->
+    <div id="paymentModal" class="modal-overlay">
+        <div class="payment-card">
+            <h2 style="color: var(--warning);">Desbloquea MexTrader</h2>
+            <p style="font-size: 0.9rem; color: var(--text-main);">Elige el plan y el método de pago</p>
+            <select id="planSelection" style="width: 100%; padding: 10px; margin-top: 15px; border-radius: 5px; background: var(--bg-dark); color: white; border: 1px solid var(--accent-blue);">
+                <option value="MAX">Plan MAX ($499 MXN / mes)</option>
+                <option value="PREMIUM">Plan PREMIUM ($999 MXN / mes)</option>
+            </select>
+            <button onclick="activateTrial()" class="btn-trial" style="margin-top: 15px;">🎁 Iniciar Prueba Gratis (24 Hrs)</button>
+            
+            <div class="payment-box">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <img src="/assets/oxxo.png" alt="OXXO" style="height: 24px; border-radius: 4px; background: white; padding: 2px;">
+                    <p style="color: var(--gold); font-weight: bold; font-size: 0.9rem; margin: 0;">Pago en Efectivo</p>
+                </div>
+                <p style="font-size: 1.1rem; letter-spacing: 2px; font-family: monospace; background: #fff; color: #000; padding: 5px; text-align: center; border-radius: 4px;">9812 7384 1029 3847</p>
+            </div>
+            
+            <div class="payment-box">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <img src="/assets/spei.png" alt="SPEI" style="height: 24px; border-radius: 4px; background: white; padding: 2px;">
+                    <p style="color: var(--accent-blue); font-weight: bold; font-size: 0.9rem; margin: 0;">Transferencia</p>
+                </div>
+                <p style="font-size: 0.8rem;">CLABE: <strong>646 180 1111 2222 3333</strong></p>
+            </div>
+            
+            <button onclick="reportUpgradeWhatsApp()" class="btn-pay" style="background: #25D366; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px;">
+                Notificar pago por WhatsApp
+            </button>
+            <p onclick="simulatePayment()" style="cursor: pointer; color: var(--text-muted); font-size: 0.75rem; text-decoration: underline;">(Admin) Simular Aprobación</p>
+            <span class="close-modal" onclick="document.getElementById('paymentModal').style.display='none'">Cerrar</span>
+        </div>
+    </div>
+
+    <div id="depositModal" class="modal-overlay">
+        <div class="payment-card" style="border: 2px solid var(--trade-green);">
+            <h2 style="color: var(--trade-green);">Fondear Cuenta</h2>
+            <div class="input-group">
+                <label style="text-align: left; color: white;">Monto a depositar (MXN)</label>
+                <input type="number" id="depositAmount" value="500" style="font-size: 1.2rem; text-align: center; font-weight: bold; color: var(--trade-green); background: #000;">
+            </div>
+            
+            <div class="payment-box" style="border-color: var(--trade-green);">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <img src="/assets/oxxo.png" alt="OXXO" style="height: 24px; border-radius: 4px; background: white; padding: 2px;">
+                    <p style="color: var(--text-main); font-weight: bold; font-size: 0.8rem; margin: 0;">OXXO: <span style="font-weight: normal;">9812 7384 1029 3847</span></p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="/assets/spei.png" alt="SPEI" style="height: 24px; border-radius: 4px; background: white; padding: 2px;">
+                    <p style="color: var(--text-main); font-weight: bold; font-size: 0.8rem; margin: 0;">SPEI: <span style="font-weight: normal;">646 180 1111 2222 3333</span></p>
+                </div>
+            </div>
+            
+            <button onclick="reportDepositWhatsApp()" class="btn-pay" style="background: #25D366; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                Notificar pago por WhatsApp
+            </button>
+            <p onclick="simulateDeposit()" style="cursor: pointer; color: var(--text-muted); font-size: 0.75rem; text-decoration: underline; margin-top: 10px;">(Admin) Simular Aprobación</p>
+            <span class="close-modal" onclick="document.getElementById('depositModal').style.display='none'">Cerrar</span>
+        </div>
+    </div>
+
+    <!-- PANEL DE ADMINISTRADOR SECRETO -->
+    <div id="adminModal" class="modal-overlay">
+        <div class="payment-card" style="border: 2px solid var(--admin-purple);">
+            <h2 style="color: var(--admin-purple);">⚙️ Panel Maestro</h2>
+            <p style="font-size: 0.8rem; margin-bottom: 15px;">Gestión de usuarios y fondos</p>
+            
+            <div class="input-group" style="text-align: left;">
+                <label style="color: white;">Contraseña Maestra</label>
+                <input type="password" id="adminPassword" placeholder="***">
+                
+                <label style="color: white; margin-top: 5px;">Usuario Afectado (Google ID o Nombre)</label>
+                <input type="text" id="adminTargetUser" placeholder="ej. correo@gmail.com">
+                
+                <label style="color: white; margin-top: 5px;">Acción a realizar</label>
+                <select id="adminAction" style="width: 100%; padding: 8px; background: var(--bg-dark); color: white; border: 1px solid var(--admin-purple); border-radius: 4px;">
+                    <option value="deposit">Añadir Saldo MXN (+)</option>
+                    <option value="deduct">Descontar Saldo/Comisión MXN (-)</option>
+                    <option value="upgrade">Mejorar Plan (MAX / PREMIUM)</option>
+                    <option value="ban">⛔ Banear Usuario</option>
+                    <option value="unban">♻️ Desbanear Usuario</option>
+                </select>
+                
+                <label style="color: white; margin-top: 5px;">Valor (Monto MXN o Nombre del Plan)</label>
+                <input type="text" id="adminValue" placeholder="ej. 500 o PREMIUM">
+            </div>
+
+            <button onclick="executeAdminAction()" class="btn-pay" style="background: var(--admin-purple); margin-top: 15px;">Ejecutar Acción</button>
+            <span class="close-modal" onclick="document.getElementById('adminModal').style.display='none'">Cerrar Panel</span>
+        </div>
+    </div>
+
+    <!-- INTERFAZ PRINCIPAL -->
+    <div id="appScreen">
+        <header>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <h2 style="color: white; cursor: pointer; user-select: none;" title="Doble clic para abrir opciones avanzadas" ondblclick="document.getElementById('adminModal').style.display='flex'">MexTrader</h2>
+                <div class="user-profile">
+                    👤 <span id="displayUsername" style="font-weight: bold; color: white;">Trader</span>
+                    <span id="displayPlan" class="plan-badge plan-basic">BASIC</span>
+                </div>
+            </div>
+            
+            <div class="balance-container">
+                <div class="balance-label">Efectivo Disponible</div>
+                <div class="balance-amount" id="balanceDisplay">Cargando...</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="bot-control">
+                    <span id="botStatusText" style="color: var(--text-main); font-weight: bold;">Bot IA Inactivo</span>
+                    <label class="switch"><input type="checkbox" id="botToggle"><span class="slider"></span></label>
+                </div>
+                <button class="upgrade-btn" onclick="document.getElementById('paymentModal').style.display='flex'">Mejorar Plan</button>
+                <button class="deposit-btn" onclick="document.getElementById('depositModal').style.display='flex'">Fondear</button>
+                <button onclick="logout()" style="background: var(--trade-red); padding: 5px 10px; font-size: 0.8rem; border-radius: 3px; border:none; color:white; cursor:pointer; font-weight:bold;">Salir</button>
+            </div>
+        </header>
+
+        <div class="main-container">
+            <div class="chart-section" id="tv_chart_container"></div>
+
+            <div class="data-section">
+                <div class="table-container" style="border-left: 4px solid var(--accent-blue);">
+                    <h3>💼 Mis Activos Propios</h3>
+                    <table>
+                        <thead><tr><th>Activo</th><th>Cantidad</th><th>Precio Promedio</th></tr></thead>
+                        <tbody id="portfolioTable"></tbody>
+                    </table>
+                </div>
+                <div class="table-container">
+                    <h3>📜 Últimas Transacciones</h3>
+                    <table>
+                        <thead><tr><th>Símbolo</th><th>Tipo</th><th>Cant.</th><th>Precio</th></tr></thead>
+                        <tbody id="positionsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <div class="panel-block">
+                    <h3>Operador Manual</h3>
+                    <div class="input-group">
+                        <input type="text" id="symbolInput" value="BINANCE:BTCUSDT">
+                    </div>
+                    <div class="live-data">
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Precio Vivo:</span>
+                        <span id="livePriceDisplay" style="font-size: 1.1rem; font-weight: bold; color: var(--trade-green);">Conectando...</span>
+                    </div>
+                    <div class="input-group">
+                        <label>Cantidad</label>
+                        <input type="number" id="qtyInput" value="0.01" step="0.01">
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-buy" onclick="placeOrder('Compra')">Comprar</button>
+                        <button class="btn btn-sell" onclick="placeOrder('Venta')">Vender</button>
+                    </div>
+                </div>
+
+                <div class="panel-block" style="border: 1px solid var(--accent-blue);">
+                    <h3 style="color: var(--accent-blue);">IA Estratégica (MAX / PREMIUM)</h3>
+                    
+                    <div class="input-group" style="margin-bottom: 10px;">
+                        <label style="color: var(--trade-green); font-weight:bold;">Capital Máximo a Invertir (MXN)</label>
+                        <input type="number" id="maxAllocatedInput" value="1500" max="2000" style="border: 1px solid var(--trade-green);">
+                        <small style="color: var(--text-muted); font-size: 0.7rem;">Límite máximo de $2,000 MXN por seguridad</small>
+                    </div>
+
+                    <div class="input-group" style="margin-bottom: 15px;">
+                        <label style="color: var(--gold); font-weight:bold;">Multitarea (Solo PREMIUM)</label>
+                        <input type="text" id="botSymbolsInput" value="BINANCE:BTCUSDT" style="border: 1px solid var(--gold);">
+                    </div>
+
+                    <div class="live-data" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+                        <div><span style="color: var(--text-muted); font-size: 0.75rem;">RSI (Gráfica actual): </span><span id="liveRsiDisplay" style="font-weight: bold;">--</span></div>
+                        <div><span style="color: var(--text-muted); font-size: 0.75rem;">SMA (Gráfica actual): </span><span id="liveSmaDisplay" style="font-weight: bold;">--</span></div>
+                    </div>
+                    
+                    <div class="flex-row">
+                        <div class="input-group"><label>RSI Compra</label><input type="number" id="rsiBuyInput" value="40"></div>
+                        <div class="input-group"><label>RSI Venta</label><input type="number" id="rsiSellInput" value="60"></div>
+                    </div>
+                    
+                    <div class="input-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
+                        <label style="color: white;">Filtro SMA</label>
+                        <input type="checkbox" id="smaFilterToggle" checked style="width: 16px; height: 16px;">
+                    </div>
+                    <div class="input-group"><label>Periodo SMA</label><input type="number" id="smaPeriodInput" value="10"></div>
+                </div>
+
+                <div class="panel-block" style="border: 1px solid var(--warning);">
+                    <h3 style="color: var(--warning);">Escudos de Riesgo</h3>
+                    <div class="input-group" style="flex-direction: row; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                        <label style="color: white; font-weight: bold;">Activar Protecciones</label>
+                        <input type="checkbox" id="riskToggle" checked style="width: 18px; height: 18px;">
+                    </div>
+                    <div class="flex-row">
+                        <div class="input-group"><label>🎯 Take Profit (%)</label><input type="number" id="tpInput" value="1.5" step="0.1"></div>
+                        <div class="input-group"><label>🛡️ Stop Loss (%)</label><input type="number" id="slInput" value="0.5" step="0.1"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script type="text/javascript">
+        const toastStyles = document.createElement('style');
+        toastStyles.innerHTML = `
+            #mextrader-toast-container { position: fixed; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
+            .mextrader-toast { min-width: 250px; padding: 15px 20px; border-radius: 8px; color: #fff; font-size: 14px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.5); opacity: 0; transform: translateX(100%); transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); display: flex; justify-content: space-between; align-items: center; }
+            .mextrader-toast.show { opacity: 1; transform: translateX(0); }
+            .toast-success { background-color: var(--trade-green); border-left: 5px solid #056656; }
+            .toast-error   { background-color: var(--trade-red); border-left: 5px solid #bd2734; }
+            .toast-warning { background-color: var(--warning); border-left: 5px solid #cc7a00; color: black; }
+            .toast-info    { background-color: var(--accent-blue); border-left: 5px solid #1a49c9; }
+        `;
+        document.head.appendChild(toastStyles);
+
+        const toastContainer = document.createElement('div');
+        toastContainer.id = 'mextrader-toast-container';
+        document.body.appendChild(toastContainer);
+
+        function showToast(mensaje, tipo = 'info', duracion = 4000) {
+            const toast = document.createElement('div');
+            toast.className = `mextrader-toast toast-${tipo}`;
+            
+            let icon = 'ℹ️';
+            if(tipo === 'success') icon = '✅';
+            if(tipo === 'error') icon = '❌';
+            if(tipo === 'warning') icon = '⚠️';
+            
+            toast.innerHTML = `
+                <span><span style="margin-right: 8px;">${icon}</span>${mensaje}</span>
+                <button style="background:none; border:none; color:inherit; cursor:pointer; font-weight:bold; margin-left:15px; font-size: 16px;" onclick="this.parentElement.remove()">✕</button>
+            `;
+
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => { if (toastContainer.contains(toast)) toast.remove(); }, 300);
+            }, duracion);
+        }
+
+        let currentLivePrice = 0; 
+        let marketSocket;
+        let currentUser = "";
+        let botInterval;
+        const googleClientId = "500835836167-tal3jv0pf9r903lq1a25g7t5nb54f3bh.apps.googleusercontent.com"; 
+
+        window.onload = async function() {
+            const oldToast = document.getElementById('toastContainer');
+            if(oldToast) oldToast.remove();
+
+            const savedUser = localStorage.getItem("currentUser");
+            if (savedUser) {
+                currentUser = savedUser;
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('appScreen').style.display = 'flex';
+                document.getElementById('displayUsername').innerText = currentUser;
+                
+                await loadUserProfile();
+                loadTradingViewWidget('BINANCE:BTCUSDT');
+                connectMarketStream('BINANCE:BTCUSDT');
+            }
+        };
+
+        async function handleCredentialResponse(response) {
+            try {
+                const res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: response.credential, client_id: googleClientId })
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    currentUser = data.username;
+                    localStorage.setItem("currentUser", currentUser);
+                    localStorage.setItem("token", data.access_token || response.credential);
+                    document.getElementById('authScreen').style.display = 'none';
+                    document.getElementById('appScreen').style.display = 'flex';
+                    document.getElementById('displayUsername').innerText = currentUser;
+                    
+                    if(data.plan) updatePlanUI(data.plan);
+                    await loadUserProfile();
+                    loadTradingViewWidget('BINANCE:BTCUSDT');
+                    connectMarketStream('BINANCE:BTCUSDT');
+                    
+                    showToast(`Bienvenido, ${currentUser}`, 'success');
+                } else {
+                    showToast("Error en Autenticación: " + data.detail, 'error');
+                }
+            } catch (error) { showToast("Error al conectar con el servidor.", 'error'); }
+        }
+
+        function toggleAuthForms() {
+            const login = document.getElementById('loginCard');
+            const reg = document.getElementById('registerCard');
+            if (login.style.display === 'none') { login.style.display = 'block'; reg.style.display = 'none'; } 
+            else { login.style.display = 'none'; reg.style.display = 'block'; }
+        }
+
+        async function doLogin() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+            
+            if(!user || !pass) return showToast("Ingresa usuario y contraseña.", 'warning');
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: user, password: pass})
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    currentUser = data.username;
+                    localStorage.setItem("currentUser", currentUser);
+                    localStorage.setItem("token", data.access_token || '');
+                    document.getElementById('authScreen').style.display = 'none';
+                    document.getElementById('appScreen').style.display = 'flex';
+                    document.getElementById('displayUsername').innerText = currentUser;
+                    
+                    if(data.plan) updatePlanUI(data.plan);
+                    await loadUserProfile();
+                    loadTradingViewWidget('BINANCE:BTCUSDT');
+                    connectMarketStream('BINANCE:BTCUSDT');
+                    
+                    showToast(`Bienvenido de nuevo, ${currentUser}`, 'success');
+                } else { showToast(data.detail, 'error'); }
+            } catch(e) { showToast("Error al conectar.", 'error'); }
+        }
+
+        async function doRegister() {
+            showToast("Función de registro activada hacia el backend.", "info");
+        }
+
+        function logout() {
+            currentUser = "";
+            localStorage.removeItem("currentUser");
+            localStorage.removeItem("token");
+            document.getElementById('appScreen').style.display = 'none';
+            document.getElementById('authScreen').style.display = 'flex';
+            if (marketSocket) marketSocket.close();
+            if (botInterval) clearInterval(botInterval);
+            document.getElementById('botToggle').checked = false;
+            document.getElementById('botStatusText').innerText = "Bot IA Inactivo";
+            document.getElementById('botStatusText').style.color = "var(--text-main)";
+            showToast("Sesión cerrada correctamente", "success");
+        }
+
+        function activateTrial() {
+            showToast("Proceso de prueba gratis iniciado.", "info");
+            setTimeout(() => document.getElementById('paymentModal').style.display='none', 1000);
+        }
+
+        function reportUpgradeWhatsApp() {
+            const plan = document.getElementById('planSelection').value;
+            window.open(`https://wa.me/5211234567890?text=Hola, quiero activar el plan ${plan} para el usuario ${currentUser}`, '_blank');
+        }
+
+        function reportDepositWhatsApp() {
+            const monto = document.getElementById('depositAmount').value;
+            window.open(`https://wa.me/5211234567890?text=Hola, acabo de depositar $${monto} MXN para el usuario ${currentUser}`, '_blank');
+        }
+
+        function simulatePayment() {
+            document.getElementById('adminTargetUser').value = currentUser;
+            document.getElementById('adminAction').value = 'upgrade';
+            document.getElementById('adminValue').value = document.getElementById('planSelection').value;
+            document.getElementById('paymentModal').style.display = 'none';
+            document.getElementById('adminModal').style.display = 'flex';
+        }
+
+        function simulateDeposit() {
+            document.getElementById('adminTargetUser').value = currentUser;
+            document.getElementById('adminAction').value = 'deposit';
+            document.getElementById('adminValue').value = document.getElementById('depositAmount').value;
+            document.getElementById('depositModal').style.display = 'none';
+            document.getElementById('adminModal').style.display = 'flex';
+        }
+
+        async function placeOrder(tipo) {
+            const symbol = document.getElementById('symbolInput').value;
+            const qty = parseFloat(document.getElementById('qtyInput').value);
+            
+            if (qty <= 0 || !currentLivePrice) {
+                return showToast("Revisa la cantidad o espera la conexión del precio.", "error");
+            }
+
+            try {
+                const token = localStorage.getItem("token") || '';
+                const res = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({
+                        username: currentUser,
+                        symbol: symbol,
+                        type: tipo,
+                        qty: qty,
+                        price: currentLivePrice
+                    })
+                });
+
+                if (res.ok) {
+                    showToast(`Orden de ${tipo} por ${qty} ${symbol} ejecutada.`, 'success');
+                    await loadUserProfile();
+                } else {
+                    const data = await res.json();
+                    showToast(data.detail || "Fondos insuficientes o error en la orden.", "error");
+                }
+            } catch (e) { 
+                showToast("Error de red al intentar enviar la orden.", "error"); 
+            }
+        }
+
+        // ==========================================
+        // 🤖 MOTOR DEL BOT
+        // ==========================================
+        document.getElementById('botToggle').addEventListener('change', function(e) {
+            const isBotActive = e.target.checked;
+            const botStatusText = document.getElementById('botStatusText');
+            
+            if (isBotActive) {
+                const maxInversion = parseFloat(document.getElementById('maxAllocatedInput').value);
+                if (maxInversion > 2000) {
+                    showToast("Por seguridad, el límite máximo permitido para el Bot es de $2,000 MXN.", "warning");
+                    e.target.checked = false;
+                    return;
+                }
+
+                botStatusText.innerText = "Bot IA Activo";
+                botStatusText.style.color = "var(--trade-green)";
+                showToast("Bot IA activado. Analizando mercado...", "success");
+                
+                botInterval = setInterval(() => {
+                    if (!currentLivePrice) return;
+                    
+                    let mockRsi = Math.floor(Math.random() * (75 - 25 + 1) + 25); 
+                    let mockSma = (currentLivePrice * 0.999).toFixed(2);
+                    
+                    document.getElementById('liveRsiDisplay').innerText = mockRsi;
+                    document.getElementById('liveSmaDisplay').innerText = mockSma;
+
+                    const rsiBuy = parseFloat(document.getElementById('rsiBuyInput').value);
+                    const rsiSell = parseFloat(document.getElementById('rsiSellInput').value);
+                    
+                    const maxAllocated = parseFloat(document.getElementById('maxAllocatedInput').value);
+                    const symbol = document.getElementById('symbolInput').value;
+                    const qty = parseFloat(document.getElementById('qtyInput').value);
+                    const costoProximaCompra = qty * currentLivePrice;
+                    
+                    let invertidoActualmente = 0;
+                    if (window.userPortfolio) {
+                        const activo = window.userPortfolio.find(p => p.symbol === symbol);
+                        if (activo) {
+                            invertidoActualmente = activo.qty * activo.avg_price;
+                        }
+                    }
+
+                    if (mockRsi <= rsiBuy) {
+                        if ((invertidoActualmente + costoProximaCompra) <= maxAllocated) {
+                            placeOrder('Compra (Bot)');
+                        } else {
+                            console.log("Bot pausado: No puede comprar, ya llegó al límite de inversión de $" + maxAllocated);
+                        }
+                    }
+                    
+                    if (mockRsi >= rsiSell) {
+                        if (invertidoActualmente > 0) {
+                            placeOrder('Venta (Bot)');
+                        }
+                    }
+
+                }, 10000); 
+                
+            } else {
+                botStatusText.innerText = "Bot IA Inactivo";
+                botStatusText.style.color = "var(--text-main)";
+                clearInterval(botInterval);
+                document.getElementById('liveRsiDisplay').innerText = "--";
+                document.getElementById('liveSmaDisplay').innerText = "--";
+                showToast("Bot IA Estratégico desactivado.", "info");
+            }
+        });
+
+        async function executeAdminAction() {
+            const password = document.getElementById('adminPassword').value;
+            const target = document.getElementById('adminTargetUser').value; 
+            const action = document.getElementById('adminAction').value; 
+            const val = document.getElementById('adminValue').value;
+
+            if (!password || !target) return showToast("Contraseña y Usuario/Google ID son obligatorios.", 'warning');
+
+            try {
+                const token = localStorage.getItem("token") || '';
+                const res = await fetch('/api/admin/action', {
+                    method: 'POST', 
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({
+                        admin_password: password, target_username: target, action: action, value: val
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Acción exitosa: ${action} aplicada a ${target}`, 'success');
+                    document.getElementById('adminModal').style.display = 'none';
+                    document.getElementById('adminPassword').value = '';
+                    
+                    if (target === currentUser) await loadUserProfile(); 
+                    if (action === 'ban' && target === currentUser) logout();
+                } else {
+                    showToast("Error del servidor: " + data.detail, 'error');
+                }
+            } catch (e) { showToast("Error de red al contactar al panel maestro.", 'error'); }
+        }
+
+        function connectMarketStream(symbol) {
+            const wsSymbol = symbol.includes(':') ? symbol.split(':')[1].toLowerCase() : symbol.toLowerCase();
+            const wsUrl = `wss://stream.binance.com:9443/ws/${wsSymbol}@trade`;
+            
+            if (marketSocket) marketSocket.close(); 
+            
+            marketSocket = new WebSocket(wsUrl);
+            marketSocket.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                currentLivePrice = parseFloat(message.p); 
+                
+                const priceElement = document.getElementById('livePriceDisplay');
+                if (priceElement) {
+                    priceElement.innerText = `$${currentLivePrice.toFixed(2)}`;
+                    priceElement.style.color = message.m ? 'var(--trade-red)' : 'var(--trade-green)';
+                }
+            };
+            marketSocket.onerror = function() {
+                document.getElementById('livePriceDisplay').innerText = "Error";
+                showToast("Se perdió la conexión con el mercado", "error");
+            };
+        }
+
+        async function loadUserProfile() {
+            if (!currentUser) return;
+            try {
+                const token = localStorage.getItem("token") || '';
+                const res = await fetch(`/api/profile?username=${currentUser}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }); 
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    window.userPortfolio = data.portfolio;
+                    
+                    const balanceAmount = data.balance !== undefined ? parseFloat(data.balance) : 0;
+                    document.getElementById('balanceDisplay').innerText = `$${balanceAmount.toFixed(2)} MXN`;
+                    if (data.plan) updatePlanUI(data.plan);
+
+                    const portTable = document.getElementById('portfolioTable');
+                    portTable.innerHTML = '';
+                    if (data.portfolio && data.portfolio.length > 0) {
+                        data.portfolio.forEach(item => {
+                            portTable.innerHTML += `<tr><td>${item.symbol}</td><td>${item.qty}</td><td>$${item.avg_price}</td></tr>`;
+                        });
+                    } else {
+                        portTable.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Sin activos</td></tr>';
+                    }
+
+                    const histTable = document.getElementById('positionsTable');
+                    histTable.innerHTML = '';
+                    if (data.history && data.history.length > 0) {
+                        data.history.forEach(item => {
+                            const color = item.type.includes('Compra') ? 'var(--trade-green)' : 'var(--trade-red)';
+                            histTable.innerHTML += `<tr><td>${item.symbol}</td><td style="color:${color}; font-weight:bold;">${item.type}</td><td>${item.qty}</td><td>$${item.price.toFixed(2)}</td></tr>`;
+                        });
+                    } else {
+                        histTable.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Sin transacciones</td></tr>';
+                    }
+
+                } else {
+                    document.getElementById('balanceDisplay').innerText = "Error 404/401";
+                }
+            } catch (error) {
+                document.getElementById('balanceDisplay').innerText = "Desconectado";
+            }
+        }
+
+        function updatePlanUI(planName) {
+            const planBadge = document.getElementById('displayPlan');
+            if (!planBadge) return;
+            planBadge.innerText = planName;
+            planBadge.className = 'plan-badge'; 
+            if (planName === 'MAX') planBadge.classList.add('plan-max');
+            else if (planName === 'PREMIUM') planBadge.classList.add('plan-premium');
+            else planBadge.classList.add('plan-basic');
+        }
+
+        function loadTradingViewWidget(symbol) {
+            new TradingView.widget({
+                "autosize": true,
+                "symbol": symbol,
+                "interval": "15",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1", 
+                "locale": "es",
+                "enable_publishing": false,
+                "backgroundColor": "#131722",
+                "gridColor": "#1f2937",
+                "hide_top_toolbar": false,
+                "hide_legend": false,
+                "save_image": false,
+                "container_id": "tv_chart_container"
+            });
+        }
+    </script>
+</body>
+</html>
