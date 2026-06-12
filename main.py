@@ -12,12 +12,25 @@ from datetime import datetime, timedelta
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 import os
+from fastapi import FastAPI, HTTPException, Depends, status
+# ... (Tus otras importaciones se quedan igual)
 
 # ==========================================
 # 1. CONFIGURACIÓN DE BASE DE DATOS Y SEGURIDAD
 # ==========================================
-DATABASE_URL = "sqlite:///./mextrader.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# El código busca la llave en la nube. Si no la encuentra (como en tu PC), usa el archivo local.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./mextrader.db")
+
+# Ajuste automático de seguridad para bases de datos en la nube
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Configuración inteligente del motor
+if "sqlite" in DATABASE_URL:
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL) # PostgreSQL no necesita "check_same_thread"
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
